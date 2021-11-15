@@ -14,7 +14,7 @@ gcc main.c -lavutil -larchive -lavformat -o dndw
 
 # Running
 
-./dndw <url>
+./dndw \<url\>
 
 # Examples
 
