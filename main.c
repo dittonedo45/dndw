@@ -53,7 +53,6 @@ int main(signed Argsc, char *(Args[]))
 		continue;
 	    else if (ret == ARCHIVE_OK) {
 		puts(archive_entry_pathname(e));
-		archive_read_extract(a, e, 0);
 	    }
 	}
 
