@@ -93,7 +93,7 @@ int main(signed Argsc, char *(Args[]))
     }
 
     do {
-	int c = getopt_long(Argsc, Args, "ho:u:p:v", lopts, 0);
+	int c = getopt_long(Argsc, Args, "ho:u:p:vn", lopts, 0);
 	if (c == -1)
 	    break;
 	switch (c) {
@@ -204,6 +204,9 @@ int main(signed Argsc, char *(Args[]))
 	archive_read_close(a);
 	archive_entry_free(e);
     } while (0);
+    if (ARCHIVE_EOF == ret) {
+	json_dumpf(arch, stdout, 0);
+    }
 
-    return (ret == ARCHIVE_OK) == 0;
+    return (ret == ARCHIVE_EOF) == 0;
 }
