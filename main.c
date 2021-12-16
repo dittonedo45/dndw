@@ -31,7 +31,7 @@ static json_t *dndw_parse_opt(char *o)
     json_object_set(a, "value", json_string(v + 1));
     char *key = 0;
     asprintf(&key, "%.*s", v - o, o);
-    json_object_set(a, "key", key);
+    json_object_set(a, "key", json_string(key));
     free(key);
 
     return a;
@@ -39,7 +39,14 @@ static json_t *dndw_parse_opt(char *o)
 
 static void dndw_help(int l, char **ags, struct option *op, int o)
 {
+    fprintf(stderr, "%s <args>\n", *ags);
+    fprintf(stderr, "An archive Extractor.\n");
+    struct option *i = op;
 
+    while (i && i->name) {
+	fprintf(stderr, " %s or -%c\n", i->name, i->val);
+	i++;
+    }
 }
 
 int main(signed Argsc, char *(Args[]))
@@ -50,11 +57,12 @@ int main(signed Argsc, char *(Args[]))
 	{ "url", 1, 0, 'u' },
 	{ "path", 1, 0, 'p' },
 	{ "verbose", 0, 0, 'v' },
+	{ "no-extract", 0, 0, 'n' },
 	{.name = 0 }
     };
 
     if (Argsc == 1) {
-	dndw_help(lopts, Args, lopts, 0);
+	dndw_help(Argsc, Args, lopts, 0);
 	exit(1);
     }
     json_t *arch = json_object();
@@ -64,6 +72,7 @@ int main(signed Argsc, char *(Args[]))
     json_t *path = json_string(getcwd(0, 0));
     json_t *verbose = json_boolean(0);
     json_t *nh = json_boolean(0);
+    json_t *ne = json_boolean(1);
 
     struct {
 	const char *name;
@@ -73,6 +82,7 @@ int main(signed Argsc, char *(Args[]))
 	{ "url", url },
 	{ "path", path },
 	{ "verbose", verbose },
+	{ "no-extract", ne },
 	{.name = NULL }
     };
     p = mp;
@@ -103,10 +113,17 @@ int main(signed Argsc, char *(Args[]))
 	case 'v':
 	    json_object_set(arch, "verbose", json_boolean(1));
 	    break;
+	case 'h':
+	    nh = json_boolean(1);
+	    break;
+	case 'n':
+	    ne = json_boolean(1);
+	    json_object_set(arch, "no-extract", ne);
+	    break;
 	};
     } while (1);
     if (json_boolean_value(nh)) {
-	dndw_help(lopts, Args, lopts, 0);
+	dndw_help(Argsc, Args, lopts, 0);
 	return 3;
     }
     if (!strlen(json_string_value(url)))
@@ -114,12 +131,12 @@ int main(signed Argsc, char *(Args[]))
 
     int ret = 0;
     do {
-	const char *url = json_string_value(url);
-	const char *path = json_string_value(path);
+	const char *urls = json_string_value(url);
+	const char *pa = json_string_value(path);
 	AVDictionary *opts = 0;
 
-	if (strlen(path)) {
-	    if (chdir(path))
+	if (strlen(pa)) {
+	    if (chdir(pa))
 		break;
 	}
 
@@ -148,10 +165,10 @@ int main(signed Argsc, char *(Args[]))
 	}
 
 	if (json_boolean_value(verbose)) {
-	    av_log_level(AV_LOG_VERBOSE);
+	    av_log_set_level(AV_LOG_VERBOSE);
 	}
 
-	ret = avio_open2(&ioc, url, AVIO_FLAG_READ, 0, &opts);
+	ret = avio_open2(&ioc, urls, AVIO_FLAG_READ, 0, &opts);
 
 	do {
 	    if (ret < 0)
@@ -175,7 +192,9 @@ int main(signed Argsc, char *(Args[]))
 		    continue;
 		else if (ret == ARCHIVE_OK) {
 		    puts(archive_entry_pathname(e));
-		    archive_read_extract(a, e, 0);
+		    if (json_boolean_value(ne) == 0) {
+			archive_read_extract(a, e, 0);
+		    }
 		}
 	    }
 	} while (0);
