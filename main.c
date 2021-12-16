@@ -22,6 +22,25 @@ static int dn_cst_reader(struct archive *a, void *d, const void **b)
 }
 
 #include <jansson.h>
+static json_t *dndw_parse_opt(char *o)
+{
+    char *v = strrchr(o, '=');
+    if (!v)
+	return 0;
+    json_t *a = json_object();
+    json_object_set(a, "value", json_string(v + 1));
+    char *key = 0;
+    asprintf(&key, "%.*s", v - o, o);
+    json_object_set(a, "key", key);
+    free(key);
+
+    return a;
+}
+
+static void dndw_help(int l, char **ags, struct option *op, int o)
+{
+
+}
 
 int main(signed Argsc, char *(Args[]))
 {
@@ -30,12 +49,12 @@ int main(signed Argsc, char *(Args[]))
 	{ "option", 1, 0, 'o' },
 	{ "url", 1, 0, 'u' },
 	{ "path", 1, 0, 'p' },
-	{ "verbose", 0, 'v' },
+	{ "verbose", 0, 0, 'v' },
 	{.name = 0 }
     };
 
-    if (argsc == 1) {
-	dndw_help(lopts, Args, 0);
+    if (Argsc == 1) {
+	dndw_help(lopts, Args, lopts, 0);
 	exit(1);
     }
     json_t *arch = json_object();
@@ -69,9 +88,11 @@ int main(signed Argsc, char *(Args[]))
 	    break;
 	switch (c) {
 	case 'o':
-	    json_t * o = dndw_parse_opt(optarg);
-	    if (o)
-		json_array_append(arr, o);
+	    {
+		json_t *o = dndw_parse_opt(optarg);
+		if (o)
+		    json_array_append(arr, o);
+	    }
 	    break;
 	case 'u':
 	    json_string_set(url, optarg);
@@ -85,15 +106,17 @@ int main(signed Argsc, char *(Args[]))
 	};
     } while (1);
     if (json_boolean_value(nh)) {
-	dndw_parse_opt(Argsc, Args, 0);
+	dndw_help(lopts, Args, lopts, 0);
 	return 3;
     }
     if (!strlen(json_string_value(url)))
 	return 2;
 
+    int ret = 0;
     do {
 	const char *url = json_string_value(url);
 	const char *path = json_string_value(path);
+	AVDictionary *opts = 0;
 
 	if (strlen(path)) {
 	    if (chdir(path))
@@ -104,9 +127,31 @@ int main(signed Argsc, char *(Args[]))
 	struct archive_entry *e = archive_entry_new();
 	AVIOContext *ioc = 0;
 
-	int ret = 0;
+	{
+	    json_t *el;
+	    int i;
+	    json_array_foreach(arr, i, el)
+// Add json_t *el -> AVDictionary* (XXX)
+	    {
+		json_t *k = json_object_get(el, "key");
+		json_t *v = json_object_get(el, "value");
 
-	ret = avio_open(&ioc, url, AVIO_FLAG_READ);
+		if (!k || !v)
+		    continue;
+
+		const char *key = json_string_value(k);
+		const char *val = json_string_value(v);
+		if (!val || !key)
+		    continue;
+		av_dict_set(&opts, key, val, 0);
+	    }
+	}
+
+	if (json_boolean_value(verbose)) {
+	    av_log_level(AV_LOG_VERBOSE);
+	}
+
+	ret = avio_open2(&ioc, url, AVIO_FLAG_READ, 0, &opts);
 
 	do {
 	    if (ret < 0)
@@ -133,7 +178,6 @@ int main(signed Argsc, char *(Args[]))
 		    archive_read_extract(a, e, 0);
 		}
 	    }
-
 	} while (0);
 
 	avio_close(ioc);
@@ -142,5 +186,5 @@ int main(signed Argsc, char *(Args[]))
 	archive_entry_free(e);
     } while (0);
 
-    return (ret == AVERROR_EOF) == 0;
+    return (ret == ARCHIVE_OK) == 0;
 }
