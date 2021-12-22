@@ -192,9 +192,7 @@ int main(signed Argsc, char *(Args[]))
 		    continue;
 		else if (ret == ARCHIVE_OK) {
 		    puts(archive_entry_pathname(e));
-		    if (json_boolean_value(ne) == 0) {
-			archive_read_extract(a, e, 0);
-		    }
+		    archive_read_extract(a, e, 0);
 		}
 	    }
 	} while (0);
